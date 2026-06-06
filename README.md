@@ -70,4 +70,5 @@ Log to Reminders Sheet
 ## 📬 Contact
 
 **Abdul Rehman Ali**
+
 [LinkedIn](https://www.linkedin.com/in/abdul-rehman-ali/) | [Portfolio](https://abdulrehmanali.netlify.app/) | abdulrehman.tp.786@gmail.com
