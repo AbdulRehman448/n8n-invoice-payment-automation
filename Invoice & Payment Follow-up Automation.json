@@ -1,0 +1,535 @@
+{
+  "name": "Invoice & Payment Follow-up Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 24
+            }
+          ]
+        }
+      },
+      "id": "ad2cafbc-feb8-47d8-9657-31b7208503b0",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1152,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1vjOs4jqz1rUlOL5lgVxrogmCtdMOCpoT0RpOPqsKhsY",
+          "mode": "list",
+          "cachedResultName": "Invoice Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vjOs4jqz1rUlOL5lgVxrogmCtdMOCpoT0RpOPqsKhsY/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Invoices",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vjOs4jqz1rUlOL5lgVxrogmCtdMOCpoT0RpOPqsKhsY/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "abfc832f-a791-45a4-aafe-52496dd263d0",
+      "name": "Read Invoices",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -928,
+        48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ISD4F8bP6cr5P2bP",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst today = new Date();\ntoday.setHours(0,0,0,0);\n\nconst results = [];\n\nfor (const item of items) {\n  const status = (item.json.status || '').toLowerCase();\n  if (status === 'paid') continue;\n\n  const dueDateStr = item.json.due_date || '';\n  if (!dueDateStr) continue;\n\n  const dueDate = new Date(dueDateStr);\n  dueDate.setHours(0,0,0,0);\n\n  const diffDays = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));\n\n  let reminderType = null;\n\n  if (diffDays >= 1 && diffDays <= 5) reminderType = 'upcoming';\n  else if (diffDays === 0) reminderType = 'due_today';\n  else if (diffDays < 0) reminderType = `overdue_${Math.abs(diffDays)}days`;\n\n  if (reminderType) {\n    results.push({\n      json: {\n        client_name: item.json.client_name || '',\n        client_email: item.json.client_email || '',\n        invoice_number: item.json.invoice_number || '',\n        amount: item.json.amount || '',\n        due_date: dueDateStr,\n        status: item.json.status || 'Unpaid',\n        reminder_type: reminderType,\n        days_diff: diffDays\n      }\n    });\n  }\n}\n\nif (results.length === 0) {\n  return [{ json: { skip: true, message: 'No invoices need reminders today' } }];\n}\n\nreturn results;"
+      },
+      "id": "82d13908-908c-4162-a6eb-e7bcc557eb0a",
+      "name": "Check Due Dates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -704,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          }
+        },
+        "options": {}
+      },
+      "id": "92459bda-3aa3-48ed-90e3-c84c65ec5270",
+      "name": "Check Skip",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminder_type }}",
+                    "rightValue": "upcoming",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "6d73f340-e333-4431-844d-fbc1fa1891cb"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Upcoming"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminder_type }}",
+                    "rightValue": "due_today",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "1aed76b2-37a1-4dd8-b692-4b7b5fed80d4"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Due Today"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.reminder_type }}",
+                    "rightValue": "overdue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "37034463-55f1-4faf-b6dc-21fd83e45cd5"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "overdue"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      },
+      "id": "39331fb8-ebad-4b9b-9087-2e06cc401043",
+      "name": "Route by Reminder Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -256,
+        32
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.client_email }}",
+        "subject": "=Reminder: Invoice {{ $json.invoice_number }} Due in 3 Days",
+        "emailType": "text",
+        "message": "=Hi {{ $json.client_name }},\n\nThis is a friendly reminder that Invoice {{ $json.invoice_number }} for {{ $json.amount }} is due on {{ $json.due_date }}.\n\nPlease ensure payment is processed before the due date to avoid any late fees.\n\nIf you have already made the payment, please disregard this message.\n\nThank you for your business!\n\nBest regards,\nAI Automation Team",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "AI Automation Team"
+        }
+      },
+      "id": "4664ede7-dff4-4cc4-bef0-f9684667f6a0",
+      "name": "Send Upcoming Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        -144
+      ],
+      "webhookId": "eac6ed92-a8e2-4953-81d9-8b1c4e6abea4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "D88BGBXE4gJfcz9o",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.client_email }}",
+        "subject": "=Action Required: Invoice {{ $json.invoice_number }} Due Today",
+        "emailType": "text",
+        "message": "=Hi {{ $json.client_name }},\n\nThis is an important reminder that Invoice {{ $json.invoice_number }} for {{ $json.amount }} is due TODAY.\n\nPlease process your payment immediately to avoid any late charges.\n\nPayment Details:\n- Invoice: {{ $json.invoice_number }}\n- Amount: {{ $json.amount }}\n- Due Date: {{ $json.due_date }}\n\nThank you!\n\nBest regards,\nAI Automation Team",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "AI Automation Team"
+        }
+      },
+      "id": "bf29d02a-56a5-4578-9884-1104d53b6d2b",
+      "name": "Send Due Today Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        48
+      ],
+      "webhookId": "f19942af-fb6d-4df9-bb0f-51203807298c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "D88BGBXE4gJfcz9o",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.client_email }}",
+        "subject": "=OVERDUE: Invoice {{ $json.invoice_number }} Payment Required",
+        "emailType": "text",
+        "message": "=Hi {{ $json.client_name }},\n\nYour Invoice {{ $json.invoice_number }} for {{ $json.amount }} was due on {{ $json.due_date }} and remains unpaid.\n\nThis is your {{ $json.reminder_type }} notice. Please process payment immediately to avoid further action.\n\nIf you are experiencing any issues with payment, please contact us immediately so we can find a solution.\n\nBest regards,\nAI Automation Team",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "AI Automation Team"
+        }
+      },
+      "id": "3aa3012b-4a8c-4809-aba8-9382d8af2d02",
+      "name": "Send Overdue Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -32,
+        240
+      ],
+      "webhookId": "ec001bad-4fbb-46c2-98df-873c84251584",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "D88BGBXE4gJfcz9o",
+          "name": "Gmail OAuth2 API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst results = [];\n\nfor (const invoice of $('Check Skip').all()) {\n  const inv = invoice.json.invoice_number || '';\n  if (!inv || seen.has(inv)) continue;\n  seen.add(inv);\n  \n  results.push({\n    json: {\n      client_name: invoice.json.client_name || '',\n      client_email: invoice.json.client_email || '',\n      invoice_number: inv,\n      amount: invoice.json.amount || '',\n      due_date: invoice.json.due_date || '',\n      reminder_type: invoice.json.reminder_type || '',\n      sent_at: new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "752576ef-1203-45b9-a62a-a6801a3d4c77",
+      "name": "Prepare Log Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        48
+      ],
+      "executeOnce": false,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1vjOs4jqz1rUlOL5lgVxrogmCtdMOCpoT0RpOPqsKhsY",
+          "mode": "list",
+          "cachedResultName": "Invoice Automation",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vjOs4jqz1rUlOL5lgVxrogmCtdMOCpoT0RpOPqsKhsY/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 421322114,
+          "mode": "list",
+          "cachedResultName": "Reminders Log",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1vjOs4jqz1rUlOL5lgVxrogmCtdMOCpoT0RpOPqsKhsY/edit#gid=421322114"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_name": "={{ $json.client_name }}",
+            "client_email": "={{ $json.client_email }}",
+            "invoice_number": "={{ $json.invoice_number }}",
+            "amount": "={{ $json.amount }}",
+            "due_date": "={{ $json.due_date }}",
+            "reminder_type": "={{ $json.reminder_type }}",
+            "sent_at": "={{ $json.sent_at }}"
+          },
+          "matchingColumns": [
+            "invoice_number"
+          ],
+          "schema": [
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_email",
+              "displayName": "client_email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "invoice_number",
+              "displayName": "invoice_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "amount",
+              "displayName": "amount",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "due_date",
+              "displayName": "due_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "reminder_type",
+              "displayName": "reminder_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "sent_at",
+              "displayName": "sent_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0df19833-5160-43d9-a4e5-37b6fe23816e",
+      "name": "Log to Reminders Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        48
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ISD4F8bP6cr5P2bP",
+          "name": "Google Sheets OAuth2 API"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily Schedule": {
+      "main": [
+        [
+          {
+            "node": "Read Invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Invoices": {
+      "main": [
+        [
+          {
+            "node": "Check Due Dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Due Dates": {
+      "main": [
+        [
+          {
+            "node": "Check Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Skip": {
+      "main": [
+        [
+          {
+            "node": "Route by Reminder Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Reminder Type": {
+      "main": [
+        [
+          {
+            "node": "Send Upcoming Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Due Today Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Overdue Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Upcoming Reminder": {
+      "main": [
+        [
+          {
+            "node": "Prepare Log Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Due Today Reminder": {
+      "main": [
+        [
+          {
+            "node": "Prepare Log Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Overdue Reminder": {
+      "main": [
+        [
+          {
+            "node": "Prepare Log Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Log Data": {
+      "main": [
+        [
+          {
+            "node": "Log to Reminders Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "466176fb-bea2-418f-bca5-882c3d9252e6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55f1d75fe3275b80789f74068e8ca5517017b2c7002f67c018846c89915420d3"
+  },
+  "id": "6tTwOXoADb07IRfa",
+  "tags": []
+}
